@@ -20,7 +20,10 @@ import warnings
 import numpy as np
 import scipy as sp
 
-from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_squared_error
+)
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn.metrics._classification import _check_targets
 from sklearn.metrics._classification import _prf_divide
@@ -990,11 +993,12 @@ def classification_report_imbalanced(
     return report
 
 
-def macro_averaged_mean_absolute_error(y_true, y_pred, *, sample_weight=None):
-    """Compute Macro-Averaged Mean Absolute Error (MA-MAE)
-    for imbalanced ordinal classification.
+def macro_averaged_mean_absolute_error(y_true, y_pred, *, sample_weight=None, squared=False):
+    """Compute Macro-Averaged Mean Absolute Error (MA-MAE) or, with squared=True,
+    computes Macro-Averaged Mean Squared Error (MA-MSE) for 
+    imbalanced ordinal classification.
 
-    This function computes each MAE for each class and average them,
+    This function computes each MAE (MSE) for each class and average them,
     giving an equal weight to each class.
 
     Read more in the :ref:`User Guide <macro_averaged_mean_absolute_error>`.
@@ -1012,6 +1016,9 @@ def macro_averaged_mean_absolute_error(y_true, y_pred, *, sample_weight=None):
     sample_weight : array-like of shape (n_samples,), default=None
         Sample weights.
 
+    squared : bool, default=False
+        If False returns MA-MAE value, if True returns MA-MSE value
+
     Returns
     -------
     loss : float or ndarray of floats
@@ -1021,19 +1028,27 @@ def macro_averaged_mean_absolute_error(y_true, y_pred, *, sample_weight=None):
     Examples
     --------
     >>> import numpy as np
-    >>> from sklearn.metrics import mean_absolute_error
+    >>> from sklearn.metrics import mean_absolute_error, mean_squared_error
     >>> from imblearn.metrics import macro_averaged_mean_absolute_error
-    >>> y_true_balanced = [1, 1, 2, 2]
-    >>> y_true_imbalanced = [1, 2, 2, 2]
-    >>> y_pred = [1, 2, 1, 2]
+    >>> y_true_balanced = [1, 1, 2, 2, 3, 3]
+    >>> y_true_imbalanced = [1, 2, 2, 2, 3, 1]
+    >>> y_pred = [1, 2, 2, 1, 1, 3]
     >>> mean_absolute_error(y_true_balanced, y_pred)
-    0.5
+    0.6666666666666666
     >>> mean_absolute_error(y_true_imbalanced, y_pred)
-    0.25
+    0.8333333333333334
     >>> macro_averaged_mean_absolute_error(y_true_balanced, y_pred)
-    0.5
+    0.6666666666666666
     >>> macro_averaged_mean_absolute_error(y_true_imbalanced, y_pred)
-    0.16666666666666666
+    1.111111111111111
+    >>> mean_squared_error(y_true_balanced, y_pred)
+    1.0
+    >>> mean_squared_error(y_true_imbalanced, y_pred)
+    1.5
+    >>> macro_averaged_mean_absolute_error(y_true_balanced, y_pred, squared=True)
+    1.0
+    >>> macro_averaged_mean_absolute_error(y_true_imbalanced, y_pred, squared=True)
+    2.111111111111111
     """
     _, y_true, y_pred = _check_targets(y_true, y_pred)
     if sample_weight is not None:
@@ -1042,16 +1057,25 @@ def macro_averaged_mean_absolute_error(y_true, y_pred, *, sample_weight=None):
         sample_weight = np.ones(y_true.shape)
     check_consistent_length(y_true, y_pred, sample_weight)
     labels = unique_labels(y_true, y_pred)
-    mae = []
+    errors = []
     for possible_class in labels:
         indices = np.flatnonzero(y_true == possible_class)
-
-        mae.append(
-            mean_absolute_error(
-                y_true[indices],
-                y_pred[indices],
-                sample_weight=sample_weight[indices],
+        if squared:
+            errors.append(
+                mean_squared_error(
+                    y_true[indices],
+                    y_pred[indices],
+                    sample_weight=sample_weight[indices],
+                )
             )
-        )
+        else:
+            errors.append(
+                mean_absolute_error(
+                    y_true[indices],
+                    y_pred[indices],
+                    sample_weight=sample_weight[indices],
+                )
+            )
+            
 
-    return np.sum(mae) / len(mae)
+    return np.sum(errors) / len(errors)
